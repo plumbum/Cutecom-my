@@ -67,6 +67,12 @@ class QCPPDialogImpl:public QWidget, public Ui::CuteCommDlg
       void enableLogging(bool on);
       void chooseLogFile();
       void clearOutput();
+
+      void sendBreakSlot();
+      void changeRtsState(bool state);
+      void changeDtrState(bool state);
+      void updateSignals();
+
    protected:
       void fillBaudCb();
       void addOutput(const QString& text);
@@ -78,6 +84,11 @@ class QCPPDialogImpl:public QWidget, public Ui::CuteCommDlg
       bool sendString(const QString& s);
       void setNewOptions(int baudrate, int databits, const QString& parity, const QString& stop, bool softwareHandshake, bool hardwareHandshake);
       virtual void resizeEvent(QResizeEvent *e);
+
+      int  getSignals();
+      void setSignals(int param, bool enable);
+      bool showSignals(bool immediate);
+      void sendBreak(int duration);
 
       bool m_isConnected;
       int m_fd;
@@ -93,6 +104,7 @@ class QCPPDialogImpl:public QWidget, public Ui::CuteCommDlg
       QString m_sendFileDialogStartDir;
 
       QTimer m_outputTimer;
+      QTimer m_signalsTimer;
       QTime m_outputTimerStart;
       QString m_outputBuffer;
 

@@ -133,6 +133,11 @@ QCPPDialogImpl::QCPPDialogImpl(QWidget* parent)
    connect(m_enableLoggingCb, SIGNAL(toggled(bool)), this, SLOT(enableLogging(bool)));
 //   connect(m_enableLoggingCb, SIGNAL(toggled(bool)), this, SLOT(enableLogging(bool)));
 
+   connect(m_sendBreakPb, SIGNAL(clicked()), this, SLOT(sendBreakSlot()));
+   connect(m_rtsCb, SIGNAL(toggled(bool)), this, SLOT(changeRtsState(bool)));
+   connect(m_dtrCb, SIGNAL(toggled(bool)), this, SLOT(changeDtrState(bool)));
+   connect(&m_signalsTimer, SIGNAL(timeout()), this, SLOT(updateSignals()));
+
    m_outputView->setWordWrapMode(QTextOption::WrapAnywhere); 
    m_outputView->document()->setMaximumBlockCount(500);
 //  TODO ? m_outputView->setWordWrap(Q3TextEdit::WidgetWidth);
@@ -142,6 +147,8 @@ QCPPDialogImpl::QCPPDialogImpl(QWidget* parent)
    accel->insertItem(CTRL+Key_Q, 17);
    accel->insertItem(CTRL+Key_S, 19);
    connect(accel, SIGNAL(activated(int)), this, SLOT(sendByte(int)));*/
+
+   //m_signalsTimer.start(50);
 
    m_outputTimerStart.start();
 
@@ -899,6 +906,7 @@ void QCPPDialogImpl::connectTTY()
    QString stop=m_stopCb->currentText();
    bool softwareHandshake=m_softwareCb->isChecked();
    bool hardwareHandshake=m_hardwareCb->isChecked();
+   int signs;
 
    int flags=0;
    if (m_readCb->isChecked() && m_writeCb->isChecked())
@@ -942,6 +950,18 @@ void QCPPDialogImpl::connectTTY()
       }
 
       setNewOptions(baudrate, dataBits, parity, stop, softwareHandshake, hardwareHandshake);
+
+      setSignals(0, m_dtrCb->isChecked());
+      setSignals(1, m_rtsCb->isChecked());
+      showSignals(true);
+      m_signalsTimer.start(20);
+   }
+   else
+   {
+      signs = getSignals();
+      m_dtrCb->setChecked((signs & TIOCM_DTR) != 0);
+      m_rtsCb->setChecked((signs & TIOCM_RTS) != 0);
+      showSignals(true);
    }
 
    m_connectPb->setEnabled(false);
@@ -989,6 +1009,7 @@ void QCPPDialogImpl::disconnectTTY()
 
 void QCPPDialogImpl::disconnectTTYRestore(bool restoreSettings)
 {
+   m_signalsTimer.stop();
    m_outputTimer.stop();
    m_outputBuffer="";
 
@@ -1027,6 +1048,121 @@ void QCPPDialogImpl::disconnectTTYRestore(bool restoreSettings)
    m_notifier=0;
 }
 
+void QCPPDialogImpl::updateSignals()
+{
+    if(m_fd != -1)
+        showSignals(false);
+}
+
+bool QCPPDialogImpl::showSignals(bool immediate)
+{
+    static int old_sigs = 0;
+    int sigs = getSignals();
+
+    if(immediate || (old_sigs != sigs))
+    {
+        ctsTl->setEnabled((sigs & TIOCM_CTS) != 0);
+        dsrTl->setEnabled((sigs & TIOCM_DSR) != 0);
+        cdTl->setEnabled((sigs & TIOCM_CD) != 0);
+        riTl->setEnabled((sigs & TIOCM_RI) != 0);
+        old_sigs = sigs;
+        return true;
+    }
+    return false;
+}
+
+int QCPPDialogImpl::getSignals()
+{
+    // static int stat = 0;
+    int stat_read;
+
+    if (m_fd == -1)
+        return -1;
+
+    if (ioctl(m_fd, TIOCMGET, &stat_read) == -1)
+    {
+        // i18n_perror(_("Control signals read"));
+        return -2;
+    }
+    return stat_read;
+
+    /*
+    if (stat_read == stat)
+        return -1;
+
+    stat = stat_read;
+
+    return stat;
+    */
+}
+
+
+void QCPPDialogImpl::setSignals(int param, bool enable)
+{
+    int stat_;
+
+    if (m_fd == -1)
+        return;
+
+    if (ioctl(m_fd, TIOCMGET, &stat_) == -1)
+    {
+        // TODO i18n_perror(_("Control signals read"));
+        return;
+    }
+
+    /* DTR */
+    if (param == 0)
+    {
+        //if (stat_ & TIOCM_DTR)
+        if (!enable)
+            stat_ &= ~TIOCM_DTR;
+        else
+            stat_ |= TIOCM_DTR;
+        if (ioctl(m_fd, TIOCMSET, &stat_) == -1)
+        {
+            // TODO i18n_perror(_("DTR write"));
+            return;
+        }
+    }
+    /* RTS */
+    else if (param == 1)
+    {
+        //if (stat_ & TIOCM_RTS)
+        if (!enable)
+            stat_ &= ~TIOCM_RTS;
+        else
+            stat_ |= TIOCM_RTS;
+        if (ioctl(m_fd, TIOCMSET, &stat_) == -1)
+        {
+            // TODO i18n_perror(_("RTS write"));
+            return;
+        }
+    }
+}
+
+void QCPPDialogImpl::changeRtsState(bool state)
+{
+    std::cerr << "RTS: " << state << std::endl;
+    setSignals(1, state);
+}
+
+void QCPPDialogImpl::changeDtrState(bool state)
+{
+    std::cerr << "DTR: " << state << std::endl;
+    setSignals(0, state);
+}
+
+void QCPPDialogImpl::sendBreakSlot()
+{
+    sendBreak(0);
+}
+
+void QCPPDialogImpl::sendBreak(int duration)
+{
+    // TODO not work =(((
+    int r = tcsendbreak(m_fd, duration);
+    std::cerr << "tcsendbreak " << r << std::endl; // TODO delete it
+}
 
 
 /** This function features some code from minicom 2.0.0, src/sysdep1.c */
