@@ -72,6 +72,7 @@ class QCPPDialogImpl:public QWidget, public Ui::CuteCommDlg
       void changeRtsState(bool state);
       void changeDtrState(bool state);
       void updateSignals();
+      void hardwareToggled(bool check);
 
    protected:
       void fillBaudCb();

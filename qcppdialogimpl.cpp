@@ -138,6 +138,8 @@ QCPPDialogImpl::QCPPDialogImpl(QWidget* parent)
    connect(m_dtrCb, SIGNAL(toggled(bool)), this, SLOT(changeDtrState(bool)));
    connect(&m_signalsTimer, SIGNAL(timeout()), this, SLOT(updateSignals()));
 
+   connect(m_hardwareCb, SIGNAL(toggled(bool)), this, SLOT(hardwareToggled(bool)));
+
    m_outputView->setWordWrapMode(QTextOption::WrapAnywhere); 
    m_outputView->document()->setMaximumBlockCount(500);
 //  TODO ? m_outputView->setWordWrap(Q3TextEdit::WidgetWidth);
@@ -964,6 +966,17 @@ void QCPPDialogImpl::connectTTY()
       showSignals(true);
    }
 
+   if(hardwareHandshake)
+   {
+       m_dtrCb->setEnabled(false);
+       m_rtsCb->setEnabled(false);
+   }
+   else
+   {
+       m_dtrCb->setEnabled(true);
+       m_rtsCb->setEnabled(true);
+   }
+
    m_connectPb->setEnabled(false);
    m_deviceCb->setEnabled(false);
 
@@ -1046,6 +1059,20 @@ void QCPPDialogImpl::disconnectTTYRestore(bool restoreSettings)
    m_isConnected=false;
    delete m_notifier;
    m_notifier=0;
+}
+
+void QCPPDialogImpl::hardwareToggled(bool check)
+{
+   if(check)
+   {
+       m_dtrCb->setEnabled(false);
+       m_rtsCb->setEnabled(false);
+   }
+   else
+   {
+       m_dtrCb->setEnabled(true);
+       m_rtsCb->setEnabled(true);
+   }
 }
 
 void QCPPDialogImpl::updateSignals()
